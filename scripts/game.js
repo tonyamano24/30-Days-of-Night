@@ -22,7 +22,7 @@ const ZOMBIE_SIZE = 25;
 const ZOMBIE_SPEED = 1.5;
 const ZOMBIE_SPAWN_INTERVAL = 1500; // milliseconds
 const ZOMBIE_KNOCKBACK_DISTANCE = 15; // Distance to push zombies back on hit
-const MAX_ITEMS_PER_TYPE = 5; // Limit of active items per type
+const MAX_ITEMS_PER_TYPE = 3; // Limit of active items per type
 const MAX_HEALTH = 100;
 const ZOMBIE_DAMAGE = 10;
 
@@ -211,6 +211,32 @@ function updateStatsDisplay() {
  */
 function countItemsByType(type) {
   return items.reduce((count, item) => (item.type === type ? count + 1 : count), 0);
+}
+
+/**
+ * Ensures no item type exceeds the per-type cap by removing oldest extras.
+ */
+function enforceItemCap() {
+  const itemsByType = {};
+  items.forEach((item) => {
+    if (!itemsByType[item.type]) {
+      itemsByType[item.type] = [];
+    }
+    itemsByType[item.type].push(item);
+  });
+
+  Object.values(itemsByType).forEach((typedItems) => {
+    if (typedItems.length > MAX_ITEMS_PER_TYPE) {
+      // Remove oldest items first
+      typedItems
+        .sort((a, b) => a.creationTime - b.creationTime)
+        .slice(0, typedItems.length - MAX_ITEMS_PER_TYPE)
+        .forEach((excess) => {
+          const idx = items.indexOf(excess);
+          if (idx !== -1) items.splice(idx, 1);
+        });
+    }
+  });
 }
 
 // --- Game Object Classes ---
@@ -694,6 +720,7 @@ function updateGame() {
     }
     return true; // Keep item
   });
+  enforceItemCap(); // Safety: ensure per-type cap after any removals
 
   // 4. Collision Detection (Bullet vs Zombie)
   bullets = bullets.filter((bullet) => {
@@ -743,6 +770,7 @@ function updateGame() {
     });
     return !hit && !bullet.isOffScreen(); // Keep bullet if it didn't hit and is on screen
   });
+  enforceItemCap(); // Clamp newly spawned items within per-type cap immediately
 
   // 5. Check Game Over
   if (player.health <= 0) {
