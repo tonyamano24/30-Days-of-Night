@@ -22,6 +22,7 @@ const ZOMBIE_SIZE = 25;
 const ZOMBIE_SPEED = 1.5;
 const ZOMBIE_SPAWN_INTERVAL = 1500; // milliseconds
 const ZOMBIE_KNOCKBACK_DISTANCE = 15; // Distance to push zombies back on hit
+const MAX_ITEMS_PER_TYPE = 5; // Limit of active items per type
 const MAX_HEALTH = 100;
 const ZOMBIE_DAMAGE = 10;
 
@@ -203,6 +204,13 @@ function updateStatsDisplay() {
     statuses.push(`Damage Boost: ${remaining}s`);
   }
   weaponStatusElement.textContent = statuses.join(" | ");
+}
+
+/**
+ * Counts active items of a given type.
+ */
+function countItemsByType(type) {
+  return items.reduce((count, item) => (item.type === type ? count + 1 : count), 0);
 }
 
 // --- Game Object Classes ---
@@ -718,8 +726,11 @@ function updateGame() {
             const randomType =
               itemTypes[Math.floor(Math.random() * itemTypes.length)];
 
-            const newItem = new Item(zombie.x, zombie.y, ITEM_SIZE, randomType);
-            items.push(newItem);
+            // Only spawn if under per-type limit
+            if (countItemsByType(randomType) < MAX_ITEMS_PER_TYPE) {
+              const newItem = new Item(zombie.x, zombie.y, ITEM_SIZE, randomType);
+              items.push(newItem);
+            }
           }
           // --- End Item Drop Logic ---
 
