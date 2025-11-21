@@ -214,6 +214,28 @@ function countItemsByType(type) {
 }
 
 /**
+ * Returns a clamped value between min and max.
+ */
+function clamp(val, min, max) {
+  return Math.max(min, Math.min(max, val));
+}
+
+/**
+ * Picks a spawn position near the given point with a random offset, and clamps inside the canvas.
+ */
+function getItemSpawnPosition(baseX, baseY) {
+  const angle = Math.random() * Math.PI * 2;
+  const distance = 80 + Math.random() * 120; // Spread items 80-200px from the source
+  const x = baseX + Math.cos(angle) * distance;
+  const y = baseY + Math.sin(angle) * distance;
+  const halfSize = ITEM_SIZE / 2;
+  return {
+    x: clamp(x, halfSize, canvas.width - halfSize),
+    y: clamp(y, halfSize, canvas.height - halfSize),
+  };
+}
+
+/**
  * Ensures no item type exceeds the per-type cap by removing oldest extras.
  */
 function enforceItemCap() {
@@ -755,7 +777,8 @@ function updateGame() {
 
             // Only spawn if under per-type limit
             if (countItemsByType(randomType) < MAX_ITEMS_PER_TYPE) {
-              const newItem = new Item(zombie.x, zombie.y, ITEM_SIZE, randomType);
+              const spawnPos = getItemSpawnPosition(zombie.x, zombie.y);
+              const newItem = new Item(spawnPos.x, spawnPos.y, ITEM_SIZE, randomType);
               items.push(newItem);
             }
           }
