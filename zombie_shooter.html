@@ -252,6 +252,7 @@
       const UPGRADE_CHANCE = 0.5;
       const ITEM_LIFETIME = 15000; // 15 seconds lifetime for item
       const WARNING_TIME = 5000; // Flicker starts at 5 seconds remaining
+      const DAMAGE_BOOST_MULTIPLIER = 1.5; // NEW: 50% increased damage (1.5x)
 
       // Game State
       let player;
@@ -303,7 +304,14 @@
             0,
             Math.floor((player.upgradeEndTime - Date.now()) / 1000)
           );
-          weaponStatusElement.textContent = `Triple Shot: ${remaining}s`;
+          let statusText = "";
+          if (player.weaponType === "triple_shot") {
+            statusText = `Triple Shot: ${remaining}s`;
+          } else if (player.weaponType === "damage_boost") {
+            // NEW
+            statusText = `Damage Boost: ${remaining}s`;
+          }
+          weaponStatusElement.textContent = statusText;
         } else {
           weaponStatusElement.textContent = "";
         }
@@ -328,6 +336,7 @@
           this.upgradeEndTime = 0;
           this.currentShotDelay = 200; // ms (Default Rate of fire)
           this.defaultShotDelay = 200;
+          this.bulletDamageMultiplier = 1; // NEW: Default damage multiplier is 1
         }
 
         draw() {
@@ -397,6 +406,7 @@
           ) {
             this.weaponType = "default";
             this.currentShotDelay = this.defaultShotDelay;
+            this.bulletDamageMultiplier = 1; // NEW: Reset multiplier
           }
 
           if (mouse.isFiring) {
@@ -425,7 +435,12 @@
 
             // Adjust stats based on upgrade type
             if (type === "triple_shot") {
-              this.currentShotDelay = 300; // Slower fire rate for the triple shot to balance it
+              this.currentShotDelay = 300;
+              this.bulletDamageMultiplier = 1; // Ensure triple shot damage stays default
+            } else if (type === "damage_boost") {
+              // NEW
+              this.bulletDamageMultiplier = DAMAGE_BOOST_MULTIPLIER; // 1.5x damage
+              this.currentShotDelay = this.defaultShotDelay; // Keep default rate
             }
           }
         }
@@ -456,6 +471,9 @@
               this._createBullet(angle - spread);
               this._createBullet(angle);
               this._createBullet(angle + spread);
+            } else if (this.weaponType === "damage_boost") {
+              // Fire a single boosted bullet
+              this._createBullet(angle);
             }
 
             this.lastShotTime = now;
@@ -587,7 +605,7 @@
           this.x = x;
           this.y = y;
           this.size = size;
-          this.type = type; // e.g., 'triple_shot', 'health_pack'
+          this.type = type; // e.g., 'triple_shot', 'health_pack', 'damage_boost'
           this.creationTime = Date.now(); // Timestamp for item expiry
         }
 
@@ -668,6 +686,31 @@
               this.size,
               this.size
             );
+          } else if (this.type === "damage_boost") {
+            // NEW: Yellow Star for Damage Boost
+            ctx.fillStyle = "#FFD700"; // Gold/Yellow
+            ctx.beginPath();
+
+            // Simple 5-pointed star approximation
+            const outerRadius = this.size / 2;
+            const innerRadius = this.size / 4;
+
+            for (let i = 0; i < 5; i++) {
+              let outerAngle = Math.PI / 2 - i * ((2 * Math.PI) / 5);
+              let innerAngle = outerAngle + Math.PI / 5;
+
+              ctx.lineTo(
+                this.x + outerRadius * Math.cos(outerAngle),
+                this.y - outerRadius * Math.sin(outerAngle)
+              );
+              ctx.lineTo(
+                this.x + innerRadius * Math.cos(innerAngle),
+                this.y - innerRadius * Math.sin(innerAngle)
+              );
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
           }
 
           ctx.restore();
@@ -774,13 +817,19 @@
               bullet.size / 2 + zombie.size / 2
             ) {
               // Hit!
-              zombie.health -= 10; // Bullet damage
+              const damage = 10 * player.bulletDamageMultiplier; // CHANGED: Use player damage multiplier
+              zombie.health -= damage; // Apply calculated damage
               if (zombie.health <= 0) {
                 score += 10;
 
                 // --- Item Drop Logic (50% chance) ---
                 if (Math.random() < UPGRADE_CHANCE) {
-                  const itemTypes = ["triple_shot", "health_pack"];
+                  // CHANGED: Added 'damage_boost'
+                  const itemTypes = [
+                    "triple_shot",
+                    "health_pack",
+                    "damage_boost",
+                  ];
                   const randomType =
                     itemTypes[Math.floor(Math.random() * itemTypes.length)];
 
