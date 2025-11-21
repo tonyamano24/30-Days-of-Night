@@ -25,6 +25,8 @@ const ZOMBIE_KNOCKBACK_DISTANCE = 15; // Distance to push zombies back on hit
 const MAX_ITEMS_PER_TYPE = 3; // Limit of active items per type
 const BOMB_RADIUS = 140; // Area of effect for bomb item
 const BOMB_DAMAGE = 999; // Effectively kill zombies within radius
+const BOMB_MISSILE_SPEED = 7;
+const BOMB_MISSILE_SIZE = 10;
 const EXPLOSION_DURATION = 500; // ms visible explosion effect
 const MAX_HEALTH = 100;
 const ZOMBIE_DAMAGE = 10;
@@ -40,11 +42,13 @@ const DAMAGE_BOOST_MULTIPLIER = 1.5; // NEW: 50% increased damage (1.5x)
 // Game State
 let player;
 let bullets = [];
+let missiles = [];
 let zombies = [];
 let items = []; // New array for items
 let explosions = []; // Active explosion visuals
 let score = 0;
 let lastZombieSpawnTime = 0;
+let bombCount = 0;
 
 // Input State
 let keys = {
@@ -207,6 +211,9 @@ function updateStatsDisplay() {
     );
     statuses.push(`Damage Boost: ${remaining}s`);
   }
+  if (bombCount > 0) {
+    statuses.push(`Bombs: ${bombCount}`);
+  }
   weaponStatusElement.textContent = statuses.join(" | ");
 }
 
@@ -250,15 +257,19 @@ function getItemSpawnPosition(baseX, baseY) {
  * Triggers a bomb explosion that damages all zombies in radius.
  */
 function triggerBombExplosion(cx, cy) {
+  let kills = 0;
   zombies = zombies.filter((zombie) => {
     const distance = dist(cx, cy, zombie.x, zombie.y);
     if (distance <= BOMB_RADIUS) {
-      // High damage effectively eliminates the zombie
       zombie.health -= BOMB_DAMAGE;
+      kills += 1;
       return false;
     }
     return true;
   });
+  if (kills > 0) {
+    score += kills * 10;
+  }
   addExplosion(cx, cy);
   playHitSFX(); // Use hit SFX as explosion placeholder
 }
@@ -438,10 +449,28 @@ class Player {
     } else if (type === "damage_boost") {
       this.damageBoostEndTime = Date.now() + UPGRADE_DURATION;
     } else if (type === "bomb") {
-      // Immediate area damage around the player
-      triggerBombExplosion(this.x, this.y);
+      // Store bomb for manual use
+      bombCount += 1;
       return;
     }
+  }
+
+  /**
+   * Fires a bomb missile toward the current aim if available.
+   */
+  fireBombMissile() {
+    if (bombCount <= 0) return;
+    const angle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
+    missiles.push(
+      new Missile(
+        this.x + Math.cos(angle) * (this.size / 2 + 5),
+        this.y + Math.sin(angle) * (this.size / 2 + 5),
+        BOMB_MISSILE_SIZE,
+        angle
+      )
+    );
+    bombCount -= 1;
+    playShotSFX();
   }
 
   /**
@@ -511,6 +540,41 @@ class Bullet {
       this.x > canvas.width ||
       this.y < 0 ||
       this.y > canvas.height
+    );
+  }
+}
+
+/**
+ * Bomb Missile Class
+ */
+class Missile {
+  constructor(x, y, size, angle) {
+    this.x = x;
+    this.y = y;
+    this.size = size;
+    this.vx = Math.cos(angle) * BOMB_MISSILE_SPEED;
+    this.vy = Math.sin(angle) * BOMB_MISSILE_SPEED;
+    this.color = "#ff9800";
+  }
+
+  draw() {
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+  }
+
+  isOffScreen() {
+    return (
+      this.x < -this.size ||
+      this.x > canvas.width + this.size ||
+      this.y < -this.size ||
+      this.y > canvas.height + this.size
     );
   }
 }
@@ -802,6 +866,7 @@ function updateGame() {
   // 2. Update entities
   player.update();
   bullets.forEach((bullet) => bullet.update());
+  missiles.forEach((missile) => missile.update());
   zombies.forEach((zombie) => zombie.update());
   // Items don't move, no update needed
 
@@ -878,6 +943,29 @@ function updateGame() {
   });
   enforceItemCap(); // Clamp newly spawned items within per-type cap immediately
 
+  // 5. Collision Detection (Missile vs Zombie or bounds)
+  missiles = missiles.filter((missile) => {
+    let exploded = false;
+    for (let i = 0; i < zombies.length; i++) {
+      const zombie = zombies[i];
+      if (
+        dist(missile.x, missile.y, zombie.x, zombie.y) <
+        missile.size / 2 + zombie.size / 2
+      ) {
+        triggerBombExplosion(missile.x, missile.y);
+        exploded = true;
+        break;
+      }
+    }
+
+    if (!exploded && missile.isOffScreen()) {
+      triggerBombExplosion(missile.x, missile.y);
+      exploded = true;
+    }
+
+    return !exploded;
+  });
+
   // 5. Expire explosion visuals
   explosions = explosions.filter(
     (explosion) => Date.now() - explosion.startTime <= EXPLOSION_DURATION
@@ -900,6 +988,7 @@ function drawGame() {
   // Draw all entities
   player.draw();
   bullets.forEach((bullet) => bullet.draw());
+  missiles.forEach((missile) => missile.draw());
   zombies.forEach((zombie) => zombie.draw());
   drawExplosions();
   items.forEach((item) => item.draw()); // Draw items
@@ -977,11 +1066,13 @@ function initGame() {
   // Ensure player is created after canvas resize
   player = new Player(canvas.width / 2, canvas.height / 2, PLAYER_SIZE);
   bullets = [];
+  missiles = [];
   zombies = [];
   items = []; // Reset items array
   explosions = []; // Reset explosion effects
   score = 0;
   lastZombieSpawnTime = 0;
+  bombCount = 0;
 
   // Reset message box
   messagesDiv.style.visibility = "hidden";
@@ -1005,6 +1096,10 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowDown") keys.down = true;
   if (e.key === "ArrowLeft") keys.left = true;
   if (e.key === "ArrowRight") keys.right = true;
+  // Fire bomb missile on 'r'
+  if (key === "r" && player) {
+    player.fireBombMissile();
+  }
 });
 
 document.addEventListener("keyup", (e) => {
