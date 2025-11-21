@@ -189,6 +189,8 @@
         }
       }
     </style>
+    <!-- Include Tone.js library for audio generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
   </head>
   <body>
     <div class="game-container">
@@ -274,6 +276,89 @@
         right: false,
       };
       let mouse = { x: 0, y: 0, isFiring: false };
+
+      // --- Audio Global Variables ---
+      let shotSynth;
+      let hitSynth;
+      let itemSynth;
+      let bgmLoop;
+      let isAudioSetup = false;
+
+      // --- Audio Functions ---
+
+      function setupAudio() {
+        if (isAudioSetup) return;
+
+        // 1. Synth for Player Shot (Quick pluck sound)
+        shotSynth = new Tone.MembraneSynth({
+          pitchDecay: 0.05,
+          octaves: 4,
+          envelope: { attack: 0.001, decay: 0.4, sustain: 0.01, release: 0.1 },
+        }).toDestination();
+
+        // 2. Synth for Zombie Hit/Death (Noise burst)
+        hitSynth = new Tone.NoiseSynth({
+          noise: { type: "brown" },
+          envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.1 },
+        }).toDestination();
+
+        // 3. Synth for Item Collection (Simple chime)
+        itemSynth = new Tone.Synth({
+          oscillator: { type: "sine" },
+          envelope: { attack: 0.01, decay: 0.5, sustain: 0.0, release: 0.5 },
+        }).toDestination();
+
+        // 4. Background Music (Simple dark loop)
+        const bgmSynth = new Tone.Synth().toDestination();
+        bgmSynth.oscillator.type = "sawtooth";
+        bgmSynth.volume.value = -18; // Keep BGM volume low
+
+        const notes = ["C3", "G3", "A#3", "F3"];
+        let index = 0;
+        bgmLoop = new Tone.Loop((time) => {
+          const note = notes[index % notes.length];
+          bgmSynth.triggerAttackRelease(note, "0.5n", time);
+          index++;
+        }, "1n").start(0); // Loop every 1 note
+
+        Tone.Transport.bpm.value = 80;
+        isAudioSetup = true;
+      }
+
+      function startBGM() {
+        // Start the Tone.js transport only if not running
+        if (Tone.Transport.state !== "started") {
+          Tone.Transport.start();
+        }
+      }
+
+      function stopBGM() {
+        if (Tone.Transport.state === "started") {
+          Tone.Transport.stop();
+        }
+      }
+
+      function playShotSFX() {
+        if (shotSynth && Tone.context.state === "running") {
+          // Play a quick, short sound
+          shotSynth.triggerAttackRelease("C4", "32n");
+        }
+      }
+
+      function playHitSFX() {
+        if (hitSynth && Tone.context.state === "running") {
+          // Play a noise burst for hit/death
+          hitSynth.triggerAttackRelease("8n");
+        }
+      }
+
+      function playItemSFX() {
+        if (itemSynth && Tone.context.state === "running") {
+          // Play a chime sound for item collection
+          itemSynth.triggerAttackRelease("E5", "8n");
+        }
+      }
+      // --- End Audio Functions ---
 
       // --- Utility Functions ---
 
@@ -463,7 +548,10 @@
           if (now - this.lastShotTime > this.currentShotDelay) {
             const angle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
 
-            if (this.weaponType === "default") {
+            if (
+              this.weaponType === "default" ||
+              this.weaponType === "damage_boost"
+            ) {
               this._createBullet(angle);
             } else if (this.weaponType === "triple_shot") {
               // Fire three bullets in a spread (approx +/- 10 degrees spread)
@@ -471,11 +559,9 @@
               this._createBullet(angle - spread);
               this._createBullet(angle);
               this._createBullet(angle + spread);
-            } else if (this.weaponType === "damage_boost") {
-              // Fire a single boosted bullet
-              this._createBullet(angle);
             }
 
+            playShotSFX(); // Play shot sound effect
             this.lastShotTime = now;
           }
         }
@@ -803,6 +889,7 @@
             player.size / 2 + item.size / 2
           ) {
             player.applyUpgrade(item.type);
+            playItemSFX(); // Play item collected sound
             return false; // Remove item (Collected)
           }
           return true; // Keep item
@@ -821,6 +908,7 @@
               zombie.health -= damage; // Apply calculated damage
               if (zombie.health <= 0) {
                 score += 10;
+                playHitSFX(); // Play zombie death sound
 
                 // --- Item Drop Logic (50% chance) ---
                 if (Math.random() < UPGRADE_CHANCE) {
@@ -893,6 +981,7 @@
        */
       function gameOver() {
         isGameOver = true;
+        stopBGM(); // Stop BGM on game over
         cancelAnimationFrame(gameLoopId);
         messageTitle.textContent = "เกมโอเวอร์! (Game Over!)";
         messageScore.textContent = `คะแนนสุดท้าย: ${score}`;
@@ -904,6 +993,29 @@
        * Resets the game state and starts the game loop.
        */
       function initGame() {
+        // Audio Setup
+        setupAudio();
+
+        // Start audio context on user action (required by browsers)
+        Tone.start().then(() => {
+          startBGM();
+        });
+
+        // *** FIX: Reset all input states to prevent unwanted movement on start ***
+        keys = {
+          w: false,
+          a: false,
+          s: false,
+          d: false,
+          up: false,
+          down: false,
+          left: false,
+          right: false,
+        };
+        mouse = { x: 0, y: 0, isFiring: false };
+        resetJoystick();
+        // ************************************************************************
+
         // Reset state
         isGameOver = false;
         // Ensure player is created after canvas resize
