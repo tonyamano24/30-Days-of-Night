@@ -23,6 +23,9 @@ const ZOMBIE_SPEED = 1.5;
 const ZOMBIE_SPAWN_INTERVAL = 1500; // milliseconds
 const ZOMBIE_KNOCKBACK_DISTANCE = 15; // Distance to push zombies back on hit
 const MAX_ITEMS_PER_TYPE = 3; // Limit of active items per type
+const BOMB_RADIUS = 140; // Area of effect for bomb item
+const BOMB_DAMAGE = 999; // Effectively kill zombies within radius
+const EXPLOSION_DURATION = 500; // ms visible explosion effect
 const MAX_HEALTH = 100;
 const ZOMBIE_DAMAGE = 10;
 
@@ -39,6 +42,7 @@ let player;
 let bullets = [];
 let zombies = [];
 let items = []; // New array for items
+let explosions = []; // Active explosion visuals
 let score = 0;
 let lastZombieSpawnTime = 0;
 
@@ -221,6 +225,13 @@ function clamp(val, min, max) {
 }
 
 /**
+ * Adds an explosion visual effect.
+ */
+function addExplosion(x, y) {
+  explosions.push({ x, y, startTime: Date.now() });
+}
+
+/**
  * Picks a spawn position near the given point with a random offset, and clamps inside the canvas.
  */
 function getItemSpawnPosition(baseX, baseY) {
@@ -233,6 +244,55 @@ function getItemSpawnPosition(baseX, baseY) {
     x: clamp(x, halfSize, canvas.width - halfSize),
     y: clamp(y, halfSize, canvas.height - halfSize),
   };
+}
+
+/**
+ * Triggers a bomb explosion that damages all zombies in radius.
+ */
+function triggerBombExplosion(cx, cy) {
+  zombies = zombies.filter((zombie) => {
+    const distance = dist(cx, cy, zombie.x, zombie.y);
+    if (distance <= BOMB_RADIUS) {
+      // High damage effectively eliminates the zombie
+      zombie.health -= BOMB_DAMAGE;
+      return false;
+    }
+    return true;
+  });
+  addExplosion(cx, cy);
+  playHitSFX(); // Use hit SFX as explosion placeholder
+}
+
+/**
+ * Renders active explosion effects.
+ */
+function drawExplosions() {
+  const now = Date.now();
+  explosions.forEach((explosion) => {
+    const elapsed = now - explosion.startTime;
+    const progress = Math.min(elapsed / EXPLOSION_DURATION, 1);
+    const radius = BOMB_RADIUS * (0.2 + 0.8 * progress);
+    const alpha = 1 - progress;
+
+    const gradient = ctx.createRadialGradient(
+      explosion.x,
+      explosion.y,
+      radius * 0.2,
+      explosion.x,
+      explosion.y,
+      radius
+    );
+    gradient.addColorStop(0, `rgba(255, 240, 200, ${alpha})`);
+    gradient.addColorStop(0.4, `rgba(255, 180, 80, ${alpha * 0.9})`);
+    gradient.addColorStop(1, `rgba(255, 80, 40, 0)`);
+
+    ctx.save();
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(explosion.x, explosion.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
 }
 
 /**
@@ -377,6 +437,10 @@ class Player {
       this.currentShotDelay = 300;
     } else if (type === "damage_boost") {
       this.damageBoostEndTime = Date.now() + UPGRADE_DURATION;
+    } else if (type === "bomb") {
+      // Immediate area damage around the player
+      triggerBombExplosion(this.x, this.y);
+      return;
     }
   }
 
@@ -646,6 +710,25 @@ class Item {
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
+    } else if (this.type === "bomb") {
+      // Bomb: Dark body with lit fuse
+      ctx.save();
+      ctx.fillStyle = "#4b4b4b";
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#ffcc00";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y - this.size / 2);
+      ctx.quadraticCurveTo(
+        this.x + this.size * 0.1,
+        this.y - this.size * 0.8,
+        this.x + this.size * 0.25,
+        this.y - this.size * 0.7
+      );
+      ctx.stroke();
+      ctx.restore();
     }
 
     ctx.restore();
@@ -771,7 +854,7 @@ function updateGame() {
           // --- Item Drop Logic (50% chance) ---
           if (Math.random() < UPGRADE_CHANCE) {
             // CHANGED: Added 'damage_boost'
-            const itemTypes = ["triple_shot", "health_pack", "damage_boost"];
+            const itemTypes = ["triple_shot", "health_pack", "damage_boost", "bomb"];
             const randomType =
               itemTypes[Math.floor(Math.random() * itemTypes.length)];
 
@@ -795,6 +878,11 @@ function updateGame() {
   });
   enforceItemCap(); // Clamp newly spawned items within per-type cap immediately
 
+  // 5. Expire explosion visuals
+  explosions = explosions.filter(
+    (explosion) => Date.now() - explosion.startTime <= EXPLOSION_DURATION
+  );
+
   // 5. Check Game Over
   if (player.health <= 0) {
     gameOver();
@@ -813,6 +901,7 @@ function drawGame() {
   player.draw();
   bullets.forEach((bullet) => bullet.draw());
   zombies.forEach((zombie) => zombie.draw());
+  drawExplosions();
   items.forEach((item) => item.draw()); // Draw items
 
   // Draw the weapon aiming line on top of items for better visibility
@@ -890,6 +979,7 @@ function initGame() {
   bullets = [];
   zombies = [];
   items = []; // Reset items array
+  explosions = []; // Reset explosion effects
   score = 0;
   lastZombieSpawnTime = 0;
 
