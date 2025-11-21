@@ -21,6 +21,7 @@ const BULLET_SPEED = 10;
 const ZOMBIE_SIZE = 25;
 const ZOMBIE_SPEED = 1.5;
 const ZOMBIE_SPAWN_INTERVAL = 1500; // milliseconds
+const ZOMBIE_KNOCKBACK_DISTANCE = 15; // Distance to push zombies back on hit
 const MAX_HEALTH = 100;
 const ZOMBIE_DAMAGE = 10;
 
@@ -697,6 +698,15 @@ function updateGame() {
         // Hit!
         const damage = 10 * player.bulletDamageMultiplier; // CHANGED: Use player damage multiplier
         zombie.health -= damage; // Apply calculated damage
+        // Push zombie back one step along bullet direction
+        const mag = Math.hypot(bullet.vx, bullet.vy) || 1;
+        const knockbackX = (bullet.vx / mag) * ZOMBIE_KNOCKBACK_DISTANCE;
+        const knockbackY = (bullet.vy / mag) * ZOMBIE_KNOCKBACK_DISTANCE;
+        zombie.x += knockbackX;
+        zombie.y += knockbackY;
+        // Keep zombie in bounds
+        zombie.x = Math.max(zombie.size / 2, Math.min(canvas.width - zombie.size / 2, zombie.x));
+        zombie.y = Math.max(zombie.size / 2, Math.min(canvas.height - zombie.size / 2, zombie.y));
         if (zombie.health <= 0) {
           score += 10;
           playHitSFX(); // Play zombie death sound
