@@ -50,6 +50,7 @@ let hitSynth;
 let itemSynth;
 let bgmLoop;
 let isAudioSetup = false;
+let transportStarted = false; // Track if transport was ever started to avoid repeated scheduling
 
 // --- Audio Functions ---
 
@@ -93,15 +94,27 @@ function setupAudio() {
 }
 
 function startBGM() {
-    // Start the Tone.js transport only if not running
-    if (Tone.Transport.state !== 'started') {
+    // Start the transport only once; afterward just unmute the loop
+    if (!transportStarted) {
         Tone.Transport.start();
+        transportStarted = true;
+    }
+    if (bgmLoop) {
+        // Ensure loop is running and audible
+        if (bgmLoop.state !== 'started') {
+            bgmLoop.start();
+        }
+        bgmLoop.mute = false;
     }
 }
 
 function stopBGM() {
-    if (Tone.Transport.state === 'started') {
-        Tone.Transport.stop();
+    // Silence the loop and stop it so music halts when the game stops
+    if (bgmLoop) {
+        if (bgmLoop.state === 'started') {
+            bgmLoop.stop();
+        }
+        bgmLoop.mute = true;
     }
 }
 
