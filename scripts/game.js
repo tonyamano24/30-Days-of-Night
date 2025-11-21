@@ -151,19 +151,18 @@ function updateStatsDisplay() {
         healthBarElement.style.accentColor = '#00ffff'; // Normal color (Cyan)
     }
 
-    // Weapon Status Display
-    if (player.weaponType !== 'default') {
-        const remaining = Math.max(0, Math.floor((player.upgradeEndTime - Date.now()) / 1000));
-        let statusText = '';
-        if (player.weaponType === 'triple_shot') {
-            statusText = `Triple Shot: ${remaining}s`;
-        } else if (player.weaponType === 'damage_boost') { // NEW
-            statusText = `Damage Boost: ${remaining}s`;
-        }
-        weaponStatusElement.textContent = statusText;
-    } else {
-        weaponStatusElement.textContent = '';
+    // Weapon Status Display (support stacked effects)
+    const statuses = [];
+    const now = Date.now();
+    if (player.tripleShotEndTime > now) {
+        const remaining = Math.max(0, Math.floor((player.tripleShotEndTime - now) / 1000));
+        statuses.push(`Triple Shot: ${remaining}s`);
     }
+    if (player.damageBoostEndTime > now) {
+        const remaining = Math.max(0, Math.floor((player.damageBoostEndTime - now) / 1000));
+        statuses.push(`Damage Boost: ${remaining}s`);
+    }
+    weaponStatusElement.textContent = statuses.join(' | ');
 }
 
 // --- Game Object Classes ---
@@ -181,11 +180,11 @@ class Player {
 
         // Weapon/Upgrade State
         this.lastShotTime = 0;
-        this.weaponType = 'default';
-        this.upgradeEndTime = 0;
+        this.tripleShotEndTime = 0;
+        this.damageBoostEndTime = 0;
         this.currentShotDelay = 200; // ms (Default Rate of fire)
         this.defaultShotDelay = 200;
-        this.bulletDamageMultiplier = 1; // NEW: Default damage multiplier is 1
+        this.bulletDamageMultiplier = 1; // Default damage multiplier is 1
     }
 
     draw() {
@@ -242,12 +241,13 @@ class Player {
         this.x = Math.max(this.size / 2, Math.min(canvas.width - this.size / 2, this.x));
         this.y = Math.max(this.size / 2, Math.min(canvas.height - this.size / 2, this.y));
 
-        // Check if upgrade expired
-        if (this.weaponType !== 'default' && Date.now() > this.upgradeEndTime) {
-            this.weaponType = 'default';
-            this.currentShotDelay = this.defaultShotDelay;
-            this.bulletDamageMultiplier = 1; // NEW: Reset multiplier
-        }
+        const now = Date.now();
+        // Update active upgrade effects (supports stacking)
+        const tripleActive = this.tripleShotEndTime > now;
+        const damageBoostActive = this.damageBoostEndTime > now;
+
+        this.currentShotDelay = tripleActive ? 300 : this.defaultShotDelay;
+        this.bulletDamageMultiplier = damageBoostActive ? DAMAGE_BOOST_MULTIPLIER : 1;
 
         if (mouse.isFiring) {
             this.shoot();
@@ -267,20 +267,12 @@ class Player {
             return;
         }
 
-        // --- Weapon Upgrades (Timed) ---
-        // Only apply if the current power-up is default OR the same type (to refresh duration)
-        if (this.weaponType === 'default' || this.weaponType === type) {
-            this.weaponType = type;
-            this.upgradeEndTime = Date.now() + UPGRADE_DURATION;
-
-            // Adjust stats based on upgrade type
-            if (type === 'triple_shot') {
-                this.currentShotDelay = 300;
-                this.bulletDamageMultiplier = 1; // Ensure triple shot damage stays default
-            } else if (type === 'damage_boost') { // NEW
-                this.bulletDamageMultiplier = DAMAGE_BOOST_MULTIPLIER; // 1.5x damage
-                this.currentShotDelay = this.defaultShotDelay; // Keep default rate
-            }
+        // --- Weapon Upgrades (Timed) --- (allow stacking)
+        if (type === 'triple_shot') {
+            this.tripleShotEndTime = Date.now() + UPGRADE_DURATION;
+            this.currentShotDelay = 300;
+        } else if (type === 'damage_boost') {
+            this.damageBoostEndTime = Date.now() + UPGRADE_DURATION;
         }
     }
 
@@ -302,9 +294,11 @@ class Player {
         if (now - this.lastShotTime > this.currentShotDelay) {
             const angle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
 
-            if (this.weaponType === 'default' || this.weaponType === 'damage_boost') {
+            const tripleActive = this.tripleShotEndTime > now;
+
+            if (!tripleActive) {
                 this._createBullet(angle);
-            } else if (this.weaponType === 'triple_shot') {
+            } else {
                 // Fire three bullets in a spread (approx +/- 10 degrees spread)
                 const spread = 0.35; // Angle in radians
                 this._createBullet(angle - spread);
