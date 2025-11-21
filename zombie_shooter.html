@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เกมยิงซอมบี้</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;700&display=swap');
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: #1a1a2e; /* Dark theme */
+            color: #ffffff;
+            font-family: 'Chakra Petch', sans-serif;
+            flex-direction: column;
+            padding: 20px;
+        }
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background: #0f0f1a;
+            border-radius: 15px;
+            box-shadow: 0 0 40px rgba(0, 255, 255, 0.3);
+            max-width: 90vw;
+            width: 800px;
+        }
+        h1 {
+            color: #00ffff;
+            margin-bottom: 10px;
+        }
+        canvas {
+            border: 5px solid #00ffff;
+            background-color: #222;
+            cursor: crosshair;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+            touch-action: none; /* Disable default touch actions */
+        }
+        .stats-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 10px 0;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        #health-bar {
+            width: 100px; 
+            height: 20px;
+            margin-left: 10px;
+            /* Default accent color set in JS for responsive health display */
+        }
+        
+        .control-panel {
+            margin-top: 15px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .btn {
+            background-color: #e94560; /* Red/Pink for action */
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            transition: background-color 0.3s, transform 0.1s;
+            box-shadow: 0 4px #c2314a;
+        }
+        .btn:hover {
+            background-color: #c2314a;
+        }
+        .btn:active {
+            background-color: #9d1c32;
+            transform: translateY(2px);
+            box-shadow: 0 2px #9d1c32;
+        }
+        #game-messages {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 3px solid #00ffff;
+            padding: 30px 50px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 10;
+            visibility: hidden;
+            flex-direction: column;
+            gap: 15px;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.8);
+        }
+        #game-messages h2 {
+            margin: 0 0 10px 0;
+            color: #e94560;
+            font-size: 2.5rem;
+        }
+        #game-messages p {
+            font-size: 1.5rem;
+            margin: 5px 0;
+        }
+        
+        #weapon-status {
+            color: #3DDC84; /* Green color for power-up */
+            margin-left: 15px;
+            font-size: 1rem;
+        }
+
+        /* Mobile Controls */
+        .mobile-controls {
+            display: none;
+            margin-top: 15px;
+            width: 100%;
+            max-width: 400px;
+            position: relative;
+            user-select: none;
+        }
+        .joystick {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            bottom: 10px;
+            left: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .joystick-handle {
+            width: 40px;
+            height: 40px;
+            background: #00ffff;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .fire-button {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            background: #e94560;
+            border-radius: 50%;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            box-shadow: 0 0 15px rgba(233, 69, 96, 0.8);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        @media (max-width: 768px) {
+            .game-container {
+                padding: 10px;
+                max-width: 100vw;
+            }
+            canvas {
+                width: 95vw;
+                height: 95vw; /* Keep it square for mobile */
+                max-width: 400px;
+                max-height: 400px;
+            }
+            .stats-bar {
+                font-size: 1rem;
+            }
+            .control-panel {
+                display: none; /* Hide desktop controls */
+            }
+            .mobile-controls {
+                display: block; /* Show mobile controls */
+                height: 120px; /* Space for controls */
+            }
+            h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>เกมยิงซอมบี้ (Zombie Shooter)</h1>
+        <div class="stats-bar">
+            <span>คะแนน: <span id="score">0</span></span>
+            <div style="display: flex; align-items: center;">
+                <span>สุขภาพ: <span id="health-value">100</span></span>
+                <progress id="health-bar" value="100" max="100"></progress>
+                <span id="weapon-status"></span> <!-- Added for power-up status -->
+            </div>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div class="mobile-controls">
+            <!-- Joystick for movement -->
+            <div id="joystick" class="joystick">
+                <div class="joystick-handle"></div>
+            </div>
+            <!-- Fire button for shooting -->
+            <div id="fireButton" class="fire-button">ยิง!</div>
+        </div>
+        <div id="game-messages">
+            <h2 id="message-title">เกมโอเวอร์!</h2>
+            <p id="message-score">คะแนนสุดท้าย: 0</p>
+            <button class="btn" onclick="initGame()">เล่นใหม่</button>
+        </div>
+    </div>
+
+<!-- JavaScript Logic -->
+<script>
+// Global variables
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const scoreElement = document.getElementById('score');
+const healthValueElement = document.getElementById('health-value');
+const healthBarElement = document.getElementById('health-bar');
+const weaponStatusElement = document.getElementById('weapon-status'); // New element
+const messagesDiv = document.getElementById('game-messages');
+const messageTitle = document.getElementById('message-title');
+const messageScore = document.getElementById('message-score');
+
+let gameLoopId;
+let isGameOver = false;
+
+// Game Configuration
+const PLAYER_SIZE = 20;
+const PLAYER_SPEED = 5;
+const BULLET_SIZE = 5;
+const BULLET_SPEED = 10;
+const ZOMBIE_SIZE = 25;
+const ZOMBIE_SPEED = 1.5;
+const ZOMBIE_SPAWN_INTERVAL = 1500; // milliseconds
+const MAX_HEALTH = 100;
+const ZOMBIE_DAMAGE = 10;
+
+// New Configuration for Items
+const ITEM_SIZE = 15;
+const UPGRADE_DURATION = 10000; // 10 seconds in ms
+const UPGRADE_CHANCE = 0.1; // 10% chance to drop an item
+
+// Game State
+let player;
+let bullets = [];
+let zombies = [];
+let items = []; // New array for items
+let score = 0;
+let lastZombieSpawnTime = 0;
+
+// Input State
+let keys = { w: false, a: false, s: false, d: false, up: false, down: false, left: false, right: false };
+let mouse = { x: 0, y: 0, isFiring: false };
+
+// --- Utility Functions ---
+
+/**
+ * Calculates distance between two points.
+ */
+function dist(x1, y1, x2, y2) {
+    return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+}
+
+/**
+ * Updates the score and health display on the UI, and weapon status.
+ */
+function updateStatsDisplay() {
+    scoreElement.textContent = score;
+    healthValueElement.textContent = Math.max(0, player.health);
+    healthBarElement.value = Math.max(0, player.health);
+
+    if (player.health <= 30) {
+        healthBarElement.style.accentColor = '#e94560'; // Low health color (Red)
+    } else {
+        healthBarElement.style.accentColor = '#00ffff'; // Normal color (Cyan)
+    }
+    
+    // Weapon Status Display
+    if (player.weaponType !== 'default') {
+        const remaining = Math.max(0, Math.floor((player.upgradeEndTime - Date.now()) / 1000));
+        weaponStatusElement.textContent = `Triple Shot: ${remaining}s`;
+    } else {
+        weaponStatusElement.textContent = '';
+    }
+}
+
+// --- Game Object Classes ---
+
+/**
+ * Player Class (The Hero)
+ */
+class Player {
+    constructor(x, y, size) {
+        this.x = x;
+        this.y = y;
+        this.size = size;
+        this.health = MAX_HEALTH;
+        this.color = '#00ffff';
+        
+        // Weapon/Upgrade State
+        this.lastShotTime = 0;
+        this.weaponType = 'default';
+        this.upgradeEndTime = 0;
+        this.currentShotDelay = 200; // ms (Default Rate of fire)
+        this.defaultShotDelay = 200;
+    }
+
+    draw() {
+        ctx.save();
+        
+        // Player Body
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw the weapon/direction line (towards the mouse/aim)
+        const angle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(
+            this.x + Math.cos(angle) * (this.size / 2 + 10),
+            this.y + Math.sin(angle) * (this.size / 2 + 10)
+        );
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    update() {
+        let dx = 0;
+        let dy = 0;
+
+        // Desktop (WASD or Arrow Keys)
+        if (keys.w || keys.up) dy -= PLAYER_SPEED;
+        if (keys.s || keys.down) dy += PLAYER_SPEED;
+        if (keys.a || keys.left) dx -= PLAYER_SPEED;
+        if (keys.d || keys.right) dx += PLAYER_SPEED;
+
+        // Mobile (Joystick Movement)
+        if (joystickState.active) {
+            dx += joystickState.dx * PLAYER_SPEED;
+            dy += joystickState.dy * PLAYER_SPEED;
+        }
+
+        // Normalize diagonal movement speed
+        if (dx !== 0 && dy !== 0) {
+            const magnitude = Math.sqrt(dx * dx + dy * dy);
+            dx = (dx / magnitude) * PLAYER_SPEED;
+            dy = (dy / magnitude) * PLAYER_SPEED;
+        }
+
+        this.x += dx;
+        this.y += dy;
+
+        // Keep player within bounds
+        this.x = Math.max(this.size / 2, Math.min(canvas.width - this.size / 2, this.x));
+        this.y = Math.max(this.size / 2, Math.min(canvas.height - this.size / 2, this.y));
+        
+        // Check if upgrade expired
+        if (this.weaponType !== 'default' && Date.now() > this.upgradeEndTime) {
+            this.weaponType = 'default';
+            this.currentShotDelay = this.defaultShotDelay;
+        }
+
+        if (mouse.isFiring) {
+            this.shoot();
+        }
+
+        updateStatsDisplay();
+    }
+    
+    /**
+     * Applies a weapon upgrade or collects an item.
+     */
+    applyUpgrade(type) {
+        if (type === 'health_pack') {
+            const healthRestored = 30; // Restore 30 health
+            this.health = Math.min(MAX_HEALTH, this.health + healthRestored);
+            // Health pack is instantaneous, no timed duration
+            return; 
+        }
+        
+        // --- Weapon Upgrades (Timed) ---
+        // Only apply if the current power-up is default OR the same type (to refresh duration)
+        if (this.weaponType === 'default' || this.weaponType === type) {
+            this.weaponType = type;
+            this.upgradeEndTime = Date.now() + UPGRADE_DURATION;
+            
+            // Adjust stats based on upgrade type
+            if (type === 'triple_shot') {
+                this.currentShotDelay = 300; // Slower fire rate for the triple shot to balance it
+            }
+        }
+    }
+
+    /**
+     * Helper function to create a single bullet.
+     */
+    _createBullet(angle) {
+        const bullet = new Bullet(
+            this.x + Math.cos(angle) * (this.size / 2 + 5),
+            this.y + Math.sin(angle) * (this.size / 2 + 5),
+            BULLET_SIZE,
+            angle
+        );
+        bullets.push(bullet);
+    }
+
+    shoot() {
+        const now = Date.now();
+        if (now - this.lastShotTime > this.currentShotDelay) {
+            const angle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
+
+            if (this.weaponType === 'default') {
+                this._createBullet(angle);
+            } else if (this.weaponType === 'triple_shot') {
+                // Fire three bullets in a spread (approx +/- 10 degrees spread)
+                const spread = 0.35; // Angle in radians
+                this._createBullet(angle - spread);
+                this._createBullet(angle);
+                this._createBullet(angle + spread);
+            }
+
+            this.lastShotTime = now;
+        }
+    }
+}
+
+/**
+ * Bullet Class
+ */
+class Bullet {
+    constructor(x, y, size, angle) {
+        this.x = x;
+        this.y = y;
+        this.size = size;
+        this.vx = Math.cos(angle) * BULLET_SPEED;
+        this.vy = Math.sin(angle) * BULLET_SPEED;
+        this.color = 'yellow';
+    }
+
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+    }
+
+    isOffScreen() {
+        return this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height;
+    }
+}
+
+/**
+ * Zombie Class (The Enemy)
+ */
+class Zombie {
+    constructor(x, y, size) {
+        this.x = x;
+        this.y = y;
+        this.size = size;
+        this.color = '#e94560'; // Zombie red
+        this.initialHealth = 30;
+        this.health = this.initialHealth; // 2-3 shots to kill
+    }
+
+    draw() {
+        ctx.save();
+        
+        // Zombie Body (Square for a more menacing look)
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x - this.size / 2, this.y - this.size / 2, this.size, this.size);
+        
+        // Draw health bar
+        const healthBarWidth = this.size;
+        const healthBarHeight = 3;
+        const currentHealthRatio = this.health / this.initialHealth;
+        
+        // Background (Red)
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+        ctx.fillRect(this.x - healthBarWidth / 2, this.y - this.size / 2 - healthBarHeight - 2, healthBarWidth, healthBarHeight);
+        
+        // Foreground (Lime)
+        ctx.fillStyle = 'lime';
+        ctx.fillRect(this.x - healthBarWidth / 2, this.y - this.size / 2 - healthBarHeight - 2, healthBarWidth * currentHealthRatio, healthBarHeight);
+
+        ctx.restore();
+    }
+
+    update() {
+        // Pathfinding: move directly towards the player
+        const angle = Math.atan2(player.y - this.y, player.x - this.x);
+        this.x += Math.cos(angle) * ZOMBIE_SPEED;
+        this.y += Math.sin(angle) * ZOMBIE_SPEED;
+
+        // Check for collision with player
+        if (dist(this.x, this.y, player.x, player.y) < this.size / 2 + player.size / 2) {
+            this.attackPlayer();
+        }
+    }
+
+    lastAttackTime = 0;
+    ATTACK_DELAY = 1000; // ms (Zombie attacks every 1 second)
+
+    attackPlayer() {
+        const now = Date.now();
+        if (now - this.lastAttackTime > this.ATTACK_DELAY) {
+            player.health -= ZOMBIE_DAMAGE;
+            this.lastAttackTime = now;
+            if (player.health <= 0) {
+                gameOver();
+            }
+        }
+    }
+}
+
+/**
+ * Item Class (Power-ups) - New Class
+ */
+class Item {
+    constructor(x, y, size, type) {
+        this.x = x;
+        this.y = y;
+        this.size = size;
+        this.type = type; // e.g., 'triple_shot', 'health_pack'
+    }
+
+    draw() {
+        ctx.save();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        
+        if (this.type === 'triple_shot') {
+            // Triple Shot: Green Arrow
+            ctx.fillStyle = '#3DDC84'; 
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y - this.size / 2); // Top center
+            ctx.lineTo(this.x + this.size / 2, this.y + this.size / 2); // Bottom right
+            ctx.lineTo(this.x - this.size / 2, this.y + this.size / 2); // Bottom left
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+        } else if (this.type === 'health_pack') {
+            // Health Pack: Red Cross
+            const red = '#ff0000'; 
+            const white = '#ffffff';
+
+            // Draw a red square background
+            ctx.fillStyle = red;
+            ctx.fillRect(this.x - this.size / 2, this.y - this.size / 2, this.size, this.size);
+            
+            // Draw a white cross
+            ctx.fillStyle = white;
+            const crossWidth = this.size * 0.2;
+            const crossLength = this.size * 0.7;
+
+            // Vertical bar
+            ctx.fillRect(this.x - crossWidth / 2, this.y - crossLength / 2, crossWidth, crossLength);
+            // Horizontal bar
+            ctx.fillRect(this.x - crossLength / 2, this.y - crossWidth / 2, crossLength, crossWidth);
+            
+            // Draw border
+            ctx.strokeStyle = white;
+            ctx.strokeRect(this.x - this.size / 2, this.y - this.size / 2, this.size, this.size);
+        }
+
+        ctx.restore();
+    }
+}
+
+
+// --- Game Logic ---
+
+/**
+ * Resizes the canvas to be square and responsive.
+ */
+function resizeCanvas() {
+    // 800px max, 90vw for smaller screens
+    const size = Math.min(window.innerWidth * 0.9, 800); 
+    canvas.width = size;
+    canvas.height = size;
+    
+    // Recenter player on resize
+    if (player) {
+        player.x = canvas.width / 2;
+        player.y = canvas.height / 2;
+    }
+    // Set initial mouse position to the center for aim reference
+    getMousePos({ clientX: canvas.width / 2, clientY: canvas.height / 2 });
+}
+
+/**
+ * Spawns a zombie randomly from one of the four sides outside the canvas.
+ */
+function spawnZombie() {
+    const side = Math.floor(Math.random() * 4); // 0: top, 1: right, 2: bottom, 3: left
+    let x, y;
+
+    if (side === 0) { // Top
+        x = Math.random() * canvas.width;
+        y = -ZOMBIE_SIZE;
+    } else if (side === 1) { // Right
+        x = canvas.width + ZOMBIE_SIZE;
+        y = Math.random() * canvas.height;
+    } else if (side === 2) { // Bottom
+        x = Math.random() * canvas.width;
+        y = canvas.height + ZOMBIE_SIZE;
+    } else { // Left
+        x = -ZOMBIE_SIZE;
+        y = Math.random() * canvas.height;
+    }
+
+    zombies.push(new Zombie(x, y, ZOMBIE_SIZE));
+}
+
+/**
+ * Updates all game logic: movement, spawning, and collisions.
+ */
+function updateGame() {
+    if (isGameOver) return;
+
+    // 1. Spawning Logic: Increase difficulty by reducing spawn interval
+    const now = Date.now();
+    const spawnRateReduction = Math.min(score * 8, 1000); // Max reduction of 1000ms
+    const currentSpawnInterval = ZOMBIE_SPAWN_INTERVAL - spawnRateReduction;
+    
+    if (now - lastZombieSpawnTime > currentSpawnInterval) { 
+        spawnZombie();
+        lastZombieSpawnTime = now;
+    }
+
+    // 2. Update entities
+    player.update();
+    
+    bullets.forEach(bullet => bullet.update());
+    zombies.forEach(zombie => zombie.update());
+    // Items don't move, no update needed
+
+    // 3. Collision Detection (Player vs Item)
+    items = items.filter(item => {
+        if (dist(player.x, player.y, item.x, item.y) < player.size / 2 + item.size / 2) {
+            player.applyUpgrade(item.type);
+            return false; // Remove item (Collected)
+        }
+        return true; // Keep item
+    });
+
+
+    // 4. Collision Detection (Bullet vs Zombie)
+    bullets = bullets.filter(bullet => {
+        let hit = false;
+        zombies = zombies.filter(zombie => {
+            if (dist(bullet.x, bullet.y, zombie.x, zombie.y) < bullet.size / 2 + zombie.size / 2) {
+                // Hit!
+                zombie.health -= 10; // Bullet damage
+                if (zombie.health <= 0) {
+                    score += 10;
+                    
+                    // --- New Item Drop Logic ---
+                    if (Math.random() < UPGRADE_CHANCE) {
+                        const itemTypes = ['triple_shot', 'health_pack'];
+                        const randomType = itemTypes[Math.floor(Math.random() * itemTypes.length)];
+                        
+                        const newItem = new Item(zombie.x, zombie.y, ITEM_SIZE, randomType);
+                        items.push(newItem);
+                    }
+                    // --- End New Item Drop Logic ---
+                    
+                    return false; // Remove zombie (Killed)
+                }
+                hit = true; // Bullet disappears
+                return true; // Keep zombie
+            }
+            return true; // Keep zombie
+        });
+        return !hit && !bullet.isOffScreen(); // Keep bullet if it didn't hit and is on screen
+    });
+
+    // 5. Check Game Over
+    if (player.health <= 0) {
+        gameOver();
+    }
+}
+
+/**
+ * Clears the canvas and redraws all game entities.
+ */
+function drawGame() {
+    // Clear canvas (background)
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw all entities
+    player.draw();
+    bullets.forEach(bullet => bullet.draw());
+    zombies.forEach(zombie => zombie.draw());
+    items.forEach(item => item.draw()); // Draw items
+
+    // Draw the weapon aiming line on top of items for better visibility
+    player.draw(); 
+}
+
+/**
+ * The main game loop using requestAnimationFrame.
+ */
+function gameLoop() {
+    updateGame();
+    drawGame();
+    if (!isGameOver) {
+        gameLoopId = requestAnimationFrame(gameLoop);
+    }
+}
+
+/**
+ * Sets the game to an over state and displays the score message.
+ */
+function gameOver() {
+    isGameOver = true;
+    cancelAnimationFrame(gameLoopId);
+    messageTitle.textContent = 'เกมโอเวอร์! (Game Over!)';
+    messageScore.textContent = `คะแนนสุดท้าย: ${score}`;
+    messagesDiv.style.visibility = 'visible';
+    messagesDiv.style.display = 'flex';
+}
+
+/**
+ * Resets the game state and starts the game loop.
+ */
+function initGame() {
+    // Reset state
+    isGameOver = false;
+    // Ensure player is created after canvas resize
+    player = new Player(canvas.width / 2, canvas.height / 2, PLAYER_SIZE); 
+    bullets = [];
+    zombies = [];
+    items = []; // Reset items array
+    score = 0;
+    lastZombieSpawnTime = 0;
+    
+    // Reset message box
+    messagesDiv.style.visibility = 'hidden';
+    messagesDiv.style.display = 'none';
+
+    // Reset stats
+    updateStatsDisplay();
+
+    // Start game loop
+    if (gameLoopId) cancelAnimationFrame(gameLoopId);
+    gameLoopId = requestAnimationFrame(gameLoop);
+}
+
+// --- Input Handlers (Desktop) ---
+
+document.addEventListener('keydown', (e) => {
+    if (isGameOver) return;
+    const key = e.key.toLowerCase();
+    if (keys.hasOwnProperty(key)) keys[key] = true;
+    if (e.key === 'ArrowUp') keys.up = true;
+    if (e.key === 'ArrowDown') keys.down = true;
+    if (e.key === 'ArrowLeft') keys.left = true;
+    if (e.key === 'ArrowRight') keys.right = true;
+});
+
+document.addEventListener('keyup', (e) => {
+    if (isGameOver) return;
+    const key = e.key.toLowerCase();
+    if (keys.hasOwnProperty(key)) keys[key] = false;
+    if (e.key === 'ArrowUp') keys.up = false;
+    if (e.key === 'ArrowDown') keys.down = false;
+    if (e.key === 'ArrowLeft') keys.left = false;
+    if (e.key === 'ArrowRight') keys.right = false;
+});
+
+/**
+ * Calculates mouse position relative to the canvas.
+ */
+function getMousePos(e) {
+    const rect = canvas.getBoundingClientRect();
+    // Calculate normalized coordinates relative to canvas size
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    mouse.x = (e.clientX - rect.left) * scaleX;
+    mouse.y = (e.clientY - rect.top) * scaleY;
+}
+
+canvas.addEventListener('mousemove', getMousePos);
+canvas.addEventListener('mousedown', () => { if (!isGameOver) mouse.isFiring = true; });
+document.addEventListener('mouseup', () => { mouse.isFiring = false; }); 
+
+// --- Input Handlers (Mobile/Touch) ---
+
+const fireButton = document.getElementById('fireButton');
+const joystick = document.getElementById('joystick');
+const joystickHandle = joystick.querySelector('.joystick-handle');
+const joystickState = { active: false, startX: 0, startY: 0, dx: 0, dy: 0 };
+const joystickRadius = 50; 
+
+// Touch Fire Button
+fireButton.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (!isGameOver) mouse.isFiring = true;
+    // Set aim to player's center if no dedicated aim touch is active
+    if (!touchAimState.active) {
+        mouse.x = player.x;
+        mouse.y = player.y;
+    }
+});
+fireButton.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    mouse.isFiring = false;
+});
+
+// Touch aiming state (for aiming outside of joystick/fire buttons)
+let touchAimState = { active: false, touchId: null };
+
+// Main touch handler for canvas (only handles aiming/mouse position update)
+canvas.addEventListener('touchstart', (e) => {
+    // Only capture a touch for aiming if the joystick is NOT active
+    if (isGameOver || joystickState.active || touchAimState.active) return;
+    
+    // Check if the touch is far away from the controls area (rough check)
+    const touch = e.changedTouches[0];
+    const rect = canvas.getBoundingClientRect();
+    const isNearControls = touch.clientY > (rect.bottom - 150); // Check if touch is near bottom 150px
+    
+    if (!isNearControls) {
+        e.preventDefault();
+        touchAimState.active = true;
+        touchAimState.touchId = touch.identifier;
+        getMousePos(touch);
+    }
+});
+
+canvas.addEventListener('touchmove', (e) => {
+    if (isGameOver) return;
+    
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        const touch = e.changedTouches[i];
+        if (touch.identifier === touchAimState.touchId) {
+            e.preventDefault();
+            getMousePos(touch);
+            break;
+        }
+    }
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+    // Clear touch aiming
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        const touch = e.changedTouches[i];
+        if (touch.identifier === touchAimState.touchId) {
+            touchAimState.active = false;
+            touchAimState.touchId = null;
+            break;
+        }
+    }
+});
+
+// Joystick logic
+let activeJoystickTouchId = null;
+
+joystick.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (isGameOver) return;
+    
+    const touch = e.changedTouches[0];
+    const rect = joystick.getBoundingClientRect();
+    
+    joystickState.active = true;
+    activeJoystickTouchId = touch.identifier;
+    // Calculate the center of the joystick on screen
+    joystickState.startX = rect.left + rect.width / 2;
+    joystickState.startY = rect.top + rect.height / 2;
+    
+    updateJoystick(touch.clientX, touch.clientY);
+});
+
+document.addEventListener('touchmove', (e) => {
+    if (isGameOver) return;
+
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        const touch = e.changedTouches[i];
+        if (touch.identifier === activeJoystickTouchId) {
+            e.preventDefault();
+            updateJoystick(touch.clientX, touch.clientY);
+            break;
+        }
+    }
+}, { passive: false });
+
+document.addEventListener('touchend', (e) => {
+    if (isGameOver) return;
+
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        const touch = e.changedTouches[i];
+        if (touch.identifier === activeJoystickTouchId) {
+            resetJoystick();
+            break;
+        }
+    }
+});
+
+/**
+ * Updates the joystick movement state and handle position.
+ */
+function updateJoystick(currentX, currentY) {
+    const dxRaw = currentX - joystickState.startX;
+    const dyRaw = currentY - joystickState.startY;
+    const distance = Math.min(dist(0, 0, dxRaw, dyRaw), joystickRadius);
+    const angle = Math.atan2(dyRaw, dxRaw);
+
+    // Set normalized movement vectors (from -1 to 1)
+    joystickState.dx = distance / joystickRadius * Math.cos(angle);
+    joystickState.dy = distance / joystickRadius * Math.sin(angle);
+
+    // Update handle position (moves up to 50% of the joystick's radius)
+    joystickHandle.style.transform = `translate(${joystickState.dx * (joystickRadius * 0.5)}px, ${joystickState.dy * (joystickRadius * 0.5)}px)`;
+}
+
+/**
+ * Resets the joystick state.
+ */
+function resetJoystick() {
+    joystickState.active = false;
+    activeJoystickTouchId = null;
+    joystickState.dx = 0;
+    joystickState.dy = 0;
+    joystickHandle.style.transform = 'translate(0, 0)';
+}
+
+
+// --- Initialization ---
+
+window.addEventListener('load', () => {
+    // Initial setup
+    resizeCanvas();
+    // Set up resize listener
+    window.addEventListener('resize', resizeCanvas);
+    // Start game
+    initGame();
+});
+
+</script>
+</body>
+</html>
