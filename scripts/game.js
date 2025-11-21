@@ -27,6 +27,7 @@ const BOMB_RADIUS = 140; // Area of effect for bomb item
 const BOMB_DAMAGE = 999; // Effectively kill zombies within radius
 const BOMB_MISSILE_SPEED = 7;
 const BOMB_MISSILE_SIZE = 10;
+const MAX_MISSILE_STOCK = 3; // Max missiles player can hold
 const EXPLOSION_DURATION = 500; // ms visible explosion effect
 const MAX_HEALTH = 100;
 const ZOMBIE_DAMAGE = 10;
@@ -212,7 +213,7 @@ function updateStatsDisplay() {
     statuses.push(`Damage Boost: ${remaining}s`);
   }
   if (bombCount > 0) {
-    statuses.push(`Missiles: ${bombCount}`);
+    statuses.push(`Missiles: ${bombCount}/${MAX_MISSILE_STOCK}`);
   }
   weaponStatusElement.textContent = statuses.join(" | ");
 }
@@ -450,7 +451,7 @@ class Player {
       this.damageBoostEndTime = Date.now() + UPGRADE_DURATION;
     } else if (type === "bomb") {
       // Store bomb for manual use
-      bombCount += 1;
+      bombCount = Math.min(MAX_MISSILE_STOCK, bombCount + 1);
       return;
     }
   }
