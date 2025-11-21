@@ -212,7 +212,7 @@ function updateStatsDisplay() {
     statuses.push(`Damage Boost: ${remaining}s`);
   }
   if (bombCount > 0) {
-    statuses.push(`Bombs: ${bombCount}`);
+    statuses.push(`Missiles: ${bombCount}`);
   }
   weaponStatusElement.textContent = statuses.join(" | ");
 }
@@ -775,22 +775,46 @@ class Item {
       ctx.fill();
       ctx.stroke();
     } else if (this.type === "bomb") {
-      // Bomb: Dark body with lit fuse
+      // Bomb (missile pickup): red missile icon
       ctx.save();
-      ctx.fillStyle = "#4b4b4b";
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#ffcc00";
+      const bodyLength = this.size * 1.4;
+      const bodyWidth = this.size * 0.4;
+      ctx.fillStyle = "#ff3b30";
+      ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 2;
+      // Body
       ctx.beginPath();
-      ctx.moveTo(this.x, this.y - this.size / 2);
-      ctx.quadraticCurveTo(
-        this.x + this.size * 0.1,
-        this.y - this.size * 0.8,
-        this.x + this.size * 0.25,
-        this.y - this.size * 0.7
+      ctx.roundRect(
+        this.x - bodyLength / 2,
+        this.y - bodyWidth / 2,
+        bodyLength,
+        bodyWidth,
+        bodyWidth / 2
       );
+      ctx.fill();
+      ctx.stroke();
+      // Nose
+      ctx.beginPath();
+      ctx.moveTo(this.x + bodyLength / 2, this.y - bodyWidth / 2);
+      ctx.lineTo(this.x + bodyLength / 2 + bodyWidth, this.y);
+      ctx.lineTo(this.x + bodyLength / 2, this.y + bodyWidth / 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Tail fins
+      ctx.beginPath();
+      ctx.moveTo(this.x - bodyLength / 2, this.y - bodyWidth / 2);
+      ctx.lineTo(this.x - bodyLength / 2 - bodyWidth * 0.6, this.y - bodyWidth);
+      ctx.lineTo(this.x - bodyLength / 2, this.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(this.x - bodyLength / 2, this.y + bodyWidth / 2);
+      ctx.lineTo(this.x - bodyLength / 2 - bodyWidth * 0.6, this.y + bodyWidth);
+      ctx.lineTo(this.x - bodyLength / 2, this.y);
+      ctx.closePath();
+      ctx.fill();
       ctx.stroke();
       ctx.restore();
     }
